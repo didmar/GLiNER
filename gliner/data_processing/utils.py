@@ -1,3 +1,4 @@
+from typing import Any, Dict, List, Tuple
 import torch
 
 def pad_2d_tensor(key_data):
@@ -30,3 +31,53 @@ def pad_2d_tensor(key_data):
     padded_tensors = torch.stack(tensors)
 
     return padded_tensors
+
+
+def pretokenize_text(text: str, char_spans: List[Tuple[int, int, str]]) -> Dict[str, Any]:
+    """
+    Create a pretokenized version of the text, splitting it based on the spans.
+
+    >>> pretokenize_text("L'Allemagne a un nouveau chancelier", [(2, 11, 'country'), (17, 35, 'title')])
+    {'tokenized_text': ["L'", "Allemagne", " a un ", "nouveau chancelier"], 'ner': [[1, 1, 'country'], [3, 3, 'title']]}
+    """
+    # Filter out spans that are out of bounds
+    valid_spans = [
+        (start, end, label) for start, end, label in char_spans 
+        if start >= 0 and end <= len(text)
+    ]
+    
+    # Sort spans by start position
+    sorted_spans = sorted(valid_spans, key=lambda x: x[0])
+    
+    # Initialize lists
+    tokens = []
+    ner = []
+    current_pos = 0
+    token_idx = 0
+
+    # Process each span and text between spans
+    for span_start, span_end, label in sorted_spans:
+        # Add text before the span
+        if span_start > current_pos:
+            tokens.append(text[current_pos:span_start])
+            token_idx += 1
+            
+        # Add the span text
+        span_text = text[span_start:span_end]
+        tokens.append(span_text)
+        ner.append([token_idx, token_idx, label])
+        token_idx += 1
+        current_pos = span_end
+
+    # Add any remaining text after the last span
+    if current_pos < len(text):
+        tokens.append(text[current_pos:])
+
+    # If no valid spans, return full text as single token
+    if not tokens:
+        tokens = [text]
+
+    return {
+        'tokenized_text': tokens,
+        'ner': ner
+    }

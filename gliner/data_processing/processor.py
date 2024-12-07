@@ -149,9 +149,13 @@ class BaseProcessor(ABC):
 
         if self.preprocess_text:
             input_texts = self.prepare_texts(input_texts)
-            
-        tokenized_inputs = self.transformer_tokenizer(input_texts, is_split_into_words = True, return_tensors='pt',
+    
+        # Join the input texts, to be able to call the tokenizer with is_split_into_words=False,
+        # and not have spaces added between our "words" (we manage spaces ourselves)
+        input_texts = ["".join(text) for text in input_texts]
+        tokenized_inputs = self.transformer_tokenizer(input_texts, is_split_into_words = False, return_tensors='pt',
                                                                                 truncation=True, padding="longest")
+
         words_masks = self.prepare_word_mask(texts, tokenized_inputs, prompt_lengths)
         tokenized_inputs['words_mask'] = torch.tensor(words_masks)
         return tokenized_inputs
@@ -171,7 +175,8 @@ class BaseProcessor(ABC):
             else: # in-batch negative types
                 negs_i = negatives[:len(b["ner"]) * neg_type_ratio] if neg_type_ratio else []
 
-            types = list(set([el[-1] for el in b["ner"]] + negs_i))
+            # Sort types to ensure that the order is deterministic
+            types = sorted(set([el[-1] for el in b["ner"]] + negs_i))
             random.shuffle(types)
             types = types[:int(self.config.max_types)]
 
